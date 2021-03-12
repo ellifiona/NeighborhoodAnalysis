@@ -10,7 +10,7 @@
 | R Learner's Permit |2/19/21|  |
 | Class Reflections |3/8/21|  |
 | Polished Lab Notebooks |  |  |
-| Final Project Proposal |  |  |
+| Final Project Proposal |3/12/21|  |
 | Final Project Background |  |  |
 | Final Project Presentation |  |  |
 | Final Project |  |  |
