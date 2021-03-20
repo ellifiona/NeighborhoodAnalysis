@@ -1,0 +1,241 @@
+---
+title: "Extended Lab Notebook 1"
+author: "Elli Dastrup"
+date: "3/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Welcome to Salt Lake City 
+
+The following document provides a brief overview of population data in Salt Lake County and a discussion of the meaning behind each of the provided graphics. Salt Lake City was founded in 1847 by Brigham Young and fellow Mormon pioneers fleeing persecution in Nauvoo, Illinois. Salt Lake City is situated along the Wasatch Front and just south east of the Great Salt Lake. It is part of a modest sized metropolitan area with over 1 million residents. Salt Lake City is the capitol of Utah and the seat of Salt Lake County. This document compares the municipalities within Salt Lake County to each other.  
+
+# Data Setup 
+
+Load the necessary libraries
+```{r}
+library(tidyverse)
+library(tidycensus)
+library(leaflet)
+```
+
+Create re-usable functions
+```{r}
+saltLakeCounty <- function() {
+  c("Salt Lake City city, Utah", "Alta town, Utah", "Bluffdale city, Utah", "Cottonwood Heights city, Utah", "Draper city, Utah", "Herriman city, Utah", "Holladay city, Utah", "Midvale city, Utah", "Millcreek city, Utah", "Murray city, Utah", "Riverton city, Utah", "Sandy city, Utah", "South Jordan city, Utah", "South Salt Lake city, Utah", "Taylorsville city, Utah", "West Jordan city, Utah", "West Valley City city, Utah", "Copperton CDP, Utah", "Emigration Canyon CDP, Utah", "Kearns CDP, Utah", "Magna CDP, Utah", "White City CDP, Utah")
+}
+```
+
+Load the census data
+```{r echo = FALSE}
+census_api_key("6dc96fd65286d8f26ecdbfef74af6fc7484b47c3")
+
+placeRace <- get_acs(geography = "place", state = "UT", 
+                      variables = c("B02001_001", "B02001_002", "B02001_003", 
+                                    "B02001_004", "B02001_005", "B02001_006"),
+                      year = 2017, survey = "acs5", output = "wide", geometry = TRUE)
+
+placeIncome <- get_acs(geography = "place", state = "UT", table = "B19013", 
+                  year = 2017, survey = "acs5", output = "wide", geometry = TRUE)
+
+placeHomeValue <- get_acs(geography = "place", state = "UT", table = "B25077", 
+                  year = 2017, survey = "acs5", output = "wide", geometry = TRUE)
+
+placeEthnicity <- get_acs(geography = "place", state = "UT", variables = c("B03002_001", "B03002_012"), year=2017,
+                          survey="acs5", output="wide", geometry = TRUE)
+
+```
+
+Clean up the census data 
+```{r}
+placeRace <- placeRace %>%
+  mutate(Other = B02001_001E-(B02001_002E + B02001_003E + B02001_004E + B02001_005E + B02001_006E)) %>% 
+  rename(Total = B02001_001E, White = B02001_002E, Black = B02001_003E, 
+         AIAN = B02001_004E, Asian = B02001_005E, NHPI = B02001_006E) %>% 
+  select(NAME, Total, White, Black, AIAN, Asian, NHPI, geometry, Other)
+```
+
+Filter census data for Salt Lake County information
+```{r}
+slRace <- placeRace %>% 
+  filter(NAME %in% saltLakeCounty())
+
+slIncome <- placeIncome %>% 
+  filter(NAME %in% saltLakeCounty())
+
+slHomeValue <- placeHomeValue %>%
+  filter(NAME %in% saltLakeCounty())
+
+slEthnicity <- placeEthnicity %>%
+  filter(NAME %in% saltLakeCounty())
+```
+
+Calculate percentages for each race population category and ethnicity 
+```{r}
+slRace <-
+  slRace %>% 
+  mutate(pWhite = (White / Total)*100,
+         pBlack = (Black / Total)*100,
+         pAsian = (Asian / Total)*100,
+         pAIAN = (AIAN / Total)*100, 
+         pNHPI = (NHPI / Total)*100,
+         pOther = (Other / Total)*100)
+
+slEthnicity <- slEthnicity %>% mutate(pop_latino = (B03002_012E / B03002_001E)*100) %>% 
+ select(NAME, pop_latino, geometry)
+
+```
+
+# Data Visualization
+
+Map the 'diversity' of each municipality in Salt Lake County
+
+The following map uses default mapping measures to show the percentage of white population in each municipality in Salt Lake County. The percent of white population is used because the white population is the very high majority in each municipality. The lowest percentage white is 57% in West Valley City and the highest percentage white is 100% in Copperton. The default mapping measures show a numeric continuous classification of the diversity in each municipality. The racial demographic trends are unique compared to other cities because often the most diverse areas are in the city-center and the least diverse are the suburbs. While that trend generally holds true here, the most diverse area is West Valley City. Further analysis is required to see why there are outliers on this map. 
+
+```{r error=FALSE, message=FALSE, echo = FALSE}
+popUpRace <- paste0(slRace$NAME, "<br>", "<b>Percentage of Population That is White: <b>",
+                    round(slRace$pWhite), "%", "<br>")
+
+palRace <- colorNumeric(palette = "Purples", domain = slRace$pWhite)
+
+leaflet(slRace) %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = 1)) %>%
+  addPolygons(color = "#444444", weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              popup = popUpRace,
+              fillColor = ~colorNumeric("Purples", pWhite)(pWhite),
+              highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE)) %>%
+  addLegend("topright", pal = palRace, values = ~pWhite,
+            title = "Percent of Population That is White in 2017",
+            opacity = 1)
+```
+The map above is useful because it shows a very accurate depiction of the percentage of population that is white, however that level of detail isn't always necessary when creating interactive maps because the viewer can click on a municipality for precise information. 
+
+In order to make the map more quickly digestible I suggest creating my new categories for mapping that will offer more insight into the racial diversity of each municipality. The categories are:
+
+  - 50-60% Most Diverse 
+  - 60-70% More Diverse
+  - 70-80% Moderately Diverse
+  - 80-90% Less Diverse
+  - 90-100% Not Diverse
+  
+These new categories will more accurately display the racial diversity in Salt Lake County on a scale that makes sense for the interactive map. It is important to note that in doing this we lose precise detail at first glance.
+
+Map the diversity in Salt Lake County using the new diversity categories 
+```{r error=FALSE, message=FALSE, echo = FALSE}
+slRace <- slRace %>% mutate(diversity = case_when(Total == "579" ~ "Not Diverse",
+                                      pWhite <= "60" ~ "Most Diverse",
+                                      pWhite <= "70" & pWhite > "60" ~ "More Diverse",
+                                      pWhite <= "80" & pWhite > "70" ~ "Moderately Diverse",
+                                      pWhite <= "90" & pWhite > "80" ~ "Less Diverse",
+                                      pWhite > "90" ~ "Not Diverse"))
+
+popUpRace2 <- paste0(slRace$NAME, "<br>", "<b>Diversity: <b>",
+                    round(slRace$pWhite), "%", "<br>")
+
+palCat <- colorFactor("Blues", slRace$diversity, 
+                      levels = c("Not Diverse", "Less Diverse", "Moderately Diverse", 
+                                 "More Diverse", "Most Diverse"))
+
+leaflet(slRace) %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = 1)) %>%
+  addPolygons(color = "#444444", weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.85,
+              popup = popUpRace2,
+              fillColor = ~palCat(diversity),
+              highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE)) %>%
+  addLegend("topright", pal = palCat,
+            values = ~diversity,
+            title = "Diversity in 2017",
+            opacity = 1)
+```
+The map above provides a quick glance at each municipality's diversity and would make sense to use on a website or eflyer. The map that shows diversity in more detail makes sense to include in a more detailed analysis. 
+
+Map the percentage of population that is Latino
+
+The next population characteristic to map is the percentage of population that is Latino in each municipality. This map often confuses some viewers because they are confused why Latino is not included on the race map. The U.S. Census looks at race and ethnicity separately so the following map is separate from the racial map. 
+
+```{r error=FALSE, message=FALSE, echo = FALSE}
+popUpEthnicity <- paste0(slEthnicity$NAME, "<br>", "<b>Percentage Latino: <b>",
+                         round(slEthnicity$pop_latino), "%", "<br>")
+
+palEthnicity <- colorNumeric("Oranges", slEthnicity$pop_latino)
+
+leaflet(slEthnicity) %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = 1)) %>%
+  addPolygons(color = "#444444", weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              popup = popUpEthnicity,
+              fillColor = ~colorNumeric("Oranges", pop_latino)(pop_latino),
+              highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE)) %>% 
+  addLegend("topright", pal = palEthnicity, values = ~pop_latino,
+            title = "Percentage Latino in 2017",
+            opacity = 1)
+```
+This map generally follows the same trend as the first diversity map, the most diverse municpalities are also the municipalities with the largest Latino population. 
+
+Map the median household income 
+
+The next population characteristic to map is the average household income in each municipality. The results should be interesting in comparison to the diversity map above. 
+
+```{r error=FALSE, message=FALSE, echo = FALSE}
+popUpIncome <- paste0(slIncome$NAME, "<br>", "<b>Median Household Income: <b>",
+                    "$", slIncome$B19013_001E, "<br>")
+
+palIncome <- colorNumeric("Reds", slIncome$B19013_001E)
+
+leaflet(slIncome) %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = 1)) %>%
+  addPolygons(color = "#444444", weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              popup = popUpIncome,
+              fillColor = ~colorNumeric("Reds", B19013_001E)(B19013_001E),
+              highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE)) %>% 
+  addLegend("topright", pal = palIncome, values = ~B19013_001E,
+            title = "Median Family Income in 2017",
+            opacity = 1)
+```
+The map above generally follows the opposite pattern as the diversity map. This suggest a negative correlation between diversity and median household income: the more diverse a municipality, the lower the median household income. 
+
+This map, in conjunction with the diversity map, speaks to the function and layout of the county. Generally speaking, the closer to the mountains one lives, the wealthier they are. You can see on the map that the wealthiest municipality is Emmigration Canyon which is in the mountains. The Southern and Eastern municipalities are adjacent to the mountains and run up into the foothills of the mountains. Conversely, we see the municipalities that are closer to the center of the valley tend to make less than those in the foothills. The one surprising outlier on this map is Alta town. Alta is unique because it is a resort town, a relatively small one at that, as the map shows. It is surprising that a world renowned resort town would have one of the lowest incomes in the county. Let's take a look at the median home value next to get a closer look at Alta town.
+
+Map the median home value
+
+The last population characteristic to map is the average home value in each municipality. The results will be particularly interesting in comparison to the income map since some of the values were surprising. 
+
+```{r error=FALSE, message=FALSE, echo = FALSE}
+popUpHomeValue <- paste0(slHomeValue$NAME, "<br>", "<b>Median Home Value: <b>",
+                    "$", slHomeValue$B25077_001E, "<br>")
+
+palHomeValue <- colorNumeric("Greens", slHomeValue$B25077_001E)
+
+leaflet(slHomeValue) %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = 1)) %>%
+  addPolygons(color = "#444444", weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              popup = popUpHomeValue,
+              fillColor = ~colorNumeric("Greens", B25077_001E)(B25077_001E),
+              highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE)) %>%
+  addLegend("topright", pal = palHomeValue, values = ~B25077_001E,
+            title = "Median Home Value in 2017",
+            opacity = 1)
+```
+The home value map above offers more insight into Alta town and its status as an outlier on the income map. On this map, Alta has the highest median home value in the whole county. How can it have the highest home value and one of the lowest wages? These two maps suggest that those living in Alta town full time are those that work at the resort and are paid working-class wages. These workers most likely live in accommodations provided by the resort, and not homes. This analysis is further supported by the total population in Alta town which is 351. This small population suggests that the majority of income reporters are workers at the resort. The high home value on the other hand, follows the theory that wealth follows elevation. The difference in income and home value shows that many of the homes in Alta town serve as vacation properties or second homes for wealthier folks who claim a different residence as their full-time residence. This would account for the low household income and the high median home value in Alta town. 
+
+The median home values in Emmigration Canyon follow the household income values and suggest that most of the residents there are full-time residents and that there is no resort or unique business that alters the economy of the municipality. 
+
+# Conclusion 
+
+This document offers a brief look at the population data in Salt Lake County. One use for this analysis of the data is as a e-flyer for the area. Utah, and the Watch Front in particular, is once of the fastest growing areas in the country. An e-flyer would be very useful for people looking to move there as they are deciding which demographic areas they are interested in living in. The reason I mapped this information in Salt Lake County is because I have an internship in Salt Lake City and I am trying to decide where to move to. The things I prioritize are diversity, affordability, and short commute times. According to the maps created above, the Southern municipalities in Salt Lake County are outside of my consideration on all three of my criteria. 
+
+According to the maps above, the most diverse spaces are those farthest from the mountains and foothills. Similarly, those spaces are also the most affordable. These characteristics have an impact on the social structure and economy of the county. Future analysis should look at other characteristics in each municipality such as education levels, poverty levels, and crime levels. This analysis would better help decision-makers know where to focus aid and support. Another key analysis is the change over time in the characteristics already on display. The change over time in a place can show other characteristics of an area that often go unseen.
+
+
