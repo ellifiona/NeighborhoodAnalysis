@@ -1,0 +1,200 @@
+---
+title: "PolishedNotebook2"
+author: "Elli Dastrup"
+date: "4/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Polished Notebook 2: Crime in Chicago, IL Compared to Income and Home Value Data
+# Does crime affect income and home value, or vice versa? What does this say about the nature of crime in Chicago?
+
+Load libraries
+```{r}
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(tigris)
+library(tidycensus)
+library(leaflet)
+```
+
+Read data
+```{r}
+inc_add_chicago <- readRDS("data/data_chicago_Thursday.rds")
+```
+
+Update sentence cost for life sentences
+```{r}
+inc_add_chicago <- inc_add_chicago %>% mutate(sentence_cost = case_when(minsent_life == TRUE ~ 1298000,
+                                                                      minsent_life == FALSE ~ sentence_cost))
+```
+
+# Prevelance 
+
+```{r}
+prevelance <- inc_add_chicago %>% group_by(Desc) %>% summarise(Sentences = n(), cost = sum(sentence_cost)) %>% arrange(desc(Sentences))
+```
+
+# Cost
+
+```{r}
+cost <- inc_add_chicago %>% group_by(Desc) %>% summarise(Sentences = n(), cost = sum(sentence_cost)) %>% arrange(desc(cost))
+```
+
+# Summarise to Tracts 
+
+```{r}
+trt <- tracts(state = "Illinois", class = "sf")
+trt <- trt %>% filter(COUNTYFP == "031", TRACTCE != "990000")
+ggplot() + 
+  geom_sf(data = trt)
+
+chi <- places(state = "Illinois", class = "sf") %>% filter(NAME == "Chicago")
+
+ggplot() + geom_sf(data=chi)
+
+ggplot() + 
+  geom_sf(data = trt, colour = "light gray", fill = NA) +
+  geom_sf(data = chi, colour = "dark gray", fill = NA)
+
+chi_trt <- trt %>% filter(st_contains(chi,trt, sparse = FALSE))
+
+ggplot() + 
+  geom_sf(data = chi_trt, colour = "light gray", fill = NA) +
+  geom_sf(data = chi, colour = "dark gray", fill = NA)+theme_minimal()
+```
+
+# Map Crime
+
+When we talk about mapping crime we have to wrestle with the idea of what we are trying to show on our maps. The following maps show the locations of individual offenders. As you can tell the last set of maps showing drug, violent, and non-violent crimes shows a bit about the geography of crime in Chicago. Looking at these maps it seems to show that non-violent crimes are the most prevalent. With drug crimes shortly behind. Violent crimes are prevalent in most neighborhoods but they are least prevalent in the north eastern neighborhoods. Unfortunately though, these individual offender maps do not offer very useful information to planners, or anybody for that matter. What are some better ways to map this data? Maybe instead of mapping individual offenders we could look at the density of criminals in certain areas in order to see broader trends within the city.
+
+```{r}
+inc_add_chicago_sf<-inc_add_chicago %>% st_as_sf(coords=c("lon", "lat"), crs = 4269)
+ggplot() +
+  geom_sf(data=inc_add_chicago_sf)
+
+inc_add_chicago_sf <- st_join(inc_add_chicago_sf, chi_trt, join = st_within)
+inc_add_chicago_sf<-inc_add_chicago_sf %>% filter(!is.na(GEOID))
+
+ggplot()+
+  geom_sf(data=inc_add_chicago_sf, cex = .18, alpha = .2) +
+  geom_sf(data = chi, colour = "dark gray", fill = NA) +
+  theme_minimal()
+
+ggplot() +
+  geom_sf(data=inc_add_chicago_sf %>% filter(Code == "Drug"), cex = .18, alpha = .2) +
+  geom_sf(data = chi, colour = "dark gray", fill = NA) +
+  theme_minimal()
+
+ggplot() +
+  geom_sf(data=inc_add_chicago_sf, cex = .2, alpha = .2) +
+  geom_sf(data = chi, colour = "dark gray", fill = NA) +
+  theme_minimal() + facet_wrap(~Code)
+```
+
+# Tract Level Summaries
+
+The following trace level summary maps illustrate city-wide trends in incarceration rather than individual criminals. The second map show the cost trends of incarceration in the city. The census tracts shown are those that cost more than $10,000,000 in incarceration costs.
+
+The third map summarizes the count of criminals in each census tract. The lightest tracts being those with the highest density of criminals. The trend shows that the highest density of criminals is in the tracts in the west side of Chicago. These trends are much more valuable to planners, community organizers, and policy makers. It is clear that there are significantly higher arrests, if nothing else, in the west side. 
+
+From here, some community activists would ask the question, why are there more arrests on the west side than any other area? More specifically, why does Census Tract 2315 have 1,395 criminals with a population of only 5,586 (Census Reporter). That is roughly 1 in every 4 people being a criminal. What is unique about this tract? This tract is the most extreme, but some of the surrounding tracts have substantially higher criminal counts in comparison to tracts in other areas of the city. 
+
+Another direction that this information could lead a researcher is in the direction of real estate and economy. Is there a correlation between high crime areas and income or even home value? These researchers would then explain the relationship between the two factors and hopefully give insight into which causes the other. 
+
+These two directions are very important and I hope to look at the data in both of those directions in the following analysis. 
+
+```{r}
+inc_add_chicago_sf %>% group_by(GEOID) %>% summarise(count = n(), cost = sum(sentence_cost, na.rm=TRUE))
+
+inc_add_chicago_trt <- inc_add_chicago_sf %>% group_by(GEOID) %>% summarise(count = n(), cost = sum(sentence_cost, na.rm=TRUE)) %>% st_set_geometry(NULL)
+
+
+tracts_to_map <- left_join(chi_trt, inc_add_chicago_trt, by="GEOID")
+
+ggplot() +
+  geom_sf(data=tracts_to_map, aes(fill = cost)) +
+  theme_minimal()
+
+ggplot() +
+  geom_sf(data=tracts_to_map %>% filter(cost > 10000000), aes(fill = cost, colour=cost)) +
+  geom_sf(data=chi, color = "dark gray", fill=NA) +
+  theme_minimal()
+
+ggplot() +
+  geom_sf(data=tracts_to_map, aes(fill = count, colour=count)) +
+  geom_sf(data=chi, color = "dark gray", fill=NA) +
+  theme_minimal()
+```
+
+# Compare Crime Map to Income Map 
+
+The first comparison we want to make with the crime map is an income map. This map uses household income data from the 2017 American Community Survey. The map shows that there seems to be a close correlation between the crime data and income data. Lets look at median home value. 
+
+```{r}
+tractIncome <- get_acs(geography = "tract", state = "IL", county = "Cook", table = "B19013", 
+                  year = 2017, survey = "acs5", output = "wide", geometry = TRUE)
+
+chiIncome <- tractIncome %>% filter(st_contains(chi, tractIncome, sparse = FALSE))
+
+palIncome <- colorNumeric("Blues", chiIncome$B19013_001E)
+
+leaflet(chiIncome) %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = 1)) %>%
+  addPolygons(color = "#444444", weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              fillColor = ~colorNumeric("Blues", B19013_001E)(B19013_001E),
+              highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE)) %>% 
+  addLegend("topright", pal = palIncome, values = ~B19013_001E,
+            title = "Median Household Income in 2017",
+            opacity = 1)
+```
+
+# Compare Crime Map to Home Value Map 
+
+The following map shows the median home value by census tract in Chicago, Illinois. The data used is from the 2017 American Community survey. This map shows a general correlation with the crime map, however you can see that the highest home values are in the north eastern census tracts and nowhere else. This map shows fairly low home values everywhere outside of the north eastern neighborhoods. 
+
+```{r}
+tractHomeValue <- get_acs(geography = "tract", state = "IL", county = "Cook", table = "B25077", 
+                  year = 2017, survey = "acs5", output = "wide", geometry = TRUE)
+
+chiHValue <- tractHomeValue %>% filter(st_contains(chi, tractHomeValue, sparse = FALSE))
+
+palHomeValue <- colorNumeric("Purples", chiHValue$B25077_001E)
+
+leaflet(chiHValue) %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = 1)) %>%
+  addPolygons(color = "#444444", weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              fillColor = ~colorNumeric("Purples", B25077_001E)(B25077_001E),
+              highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE)) %>% 
+  addLegend("topright", pal = palHomeValue, values = ~B25077_001E,
+            title = "Median Home Value in 2017",
+            opacity = 1)
+```
+
+In comparing the median income and home value maps with the crime map it is clear that the income map has a closer correlation to the crime map. The income map shows lower income neighborhoods in the west side as well as south and west neighborhoods in the city of Chicago. The crime density map shows a similar patter. While the majority of crime is located in the west side neighborhood, there is also crime in the south and west neighborhoods. 
+
+As a researcher the next question is whether we can show causation between these two maps, rather than just correlation. While I cannot strictly apply causation in this analysis, I can discuss common themes with crime and poverty. Often times crime and poverty are connected in a sort of vicious cycle. Poverty brings more crime and more crime breeds more poverty. This is because impoverished neighborhoods often lack resources to break the cycle of poverty, and that same cycle connects to crime. 
+
+This is a topic of hot debate right now. Is more crime taking place in these neighborhoods, or is the neighborhood over policed and under funded? Is it a mixture of both? I grew up in Chicago and I always heard stories of police 'black sites' in the west side where police would kidnap people and illegally torture them. While I cannot offer any support in this claim, I think it brings up a very important point. Over policing can land a young kid in jail or with a citation for something minor, but that mark on their record traps them and limits their options in life. This is when over policing can lead to more crime. This is where our criminal justice fails communities, in one of many ways. A criminal justice system focused more on rehabilitation would break that crime cycle caused by over policing. 
+
+The fact that individual criminals are mapped is indicative of the nature of our criminal justice system. We are not interested in rehabilitating those who do wrong. We are interested in publicly shaming and casting out those who do wrong, no matter the offense.
+
+A social justice researcher would identify this correlation between poverty and crime and advocate for criminal justice reforms, improved community outreach, and increased opportunities in the neighborhoods suffering the most. Instead these neighborhoods are sent more and more police officers with no reform or rehabilitation in mind. 
+
+The median home value on the other hand, shows a slight correlation with the crime map. This map would indicate some sort of causation in that real estate is heavily affected by neighborhood characteristics. This map seems to be influenced by more than just crime though, since nearly every tract besides the north east neighborhoods are low in home value. This map more closely correlates to the racial dot map we viewed in class. This map shows that the north eastern neighborhoods are the neighborhoods with majority white residents. This map almost exactly mirrors the home value map. 
+
+This interesting distinction makes the case for the long lasting effects of redlining and white flight. Not only does it show the long lasting effects, it also shows a lasting preference for majority white neighborhoods. 
+
+# Where Do We Go From Here?
+
+The essential question surrounding this document is how and where is the best place to display crime data? 
+
+The current system displays individual offenders. This document shows that crime data does not stand alone. In fact it correlates with income maps as well as home value maps. This document suggests the need for mapping crime along with other demographics that offer some explanation for the crime. Some of these demographics could be, number of patrolling officers, income data, educational opportunities data, transportation data, food availability data, etc. This information together with crime illustrates the systematic nature of crime social structure. This information together could help break the cycle of crime and poverty, crime and over-policing, crime and education, crime and education, and crime and hunger. This information together paints a fuller picture of the society we live in. 
