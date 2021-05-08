@@ -1,0 +1,502 @@
+---
+title: "Final Project Gendered Analysis of the City"
+author: "Elli Dastrup"
+date: "5/7/2021"
+output: 
+  html_document:
+  code_folding: "hide"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+# Gendered Experiences in the City: An Analysis of Chicago
+
+## Introduction 
+
+There is a consistent lack of information regarding gendered experiences in the city. Numerous reports show the income differentials between men and women across the world, many reports even show the education levels of women in the city, but very few quantitatively express the vast differences in how women perceive their neighborhood and city as opposed to how men perceive their neighborhood and city. The question at hand is who is the current built environment built for, and does the answer to that question deserve some rethinking. 
+
+There are some “homegrown” methods of quantifying women’s experiences in the city, from surveying samples of a population to inferring experiences based on available gendered data such as income or education level. Each of these methods share some insight into the experiences of women but the narrative surrounding the methods is limited. The aim of this project is to amplify the narrative supposing that the current built environment is not built with women in mind.
+
+This project looks at two data sources, Divvy bike share data and twitter data. 
+
+## Divvy Analysis Methods
+
+Divvy bikes is a bike share company in Chicago that provides almost 600 docking stations around the city for users to start and end trips. The data used in this analysis is comprised of over 11,000,000 million trips taken between 2015 and 2018. Unfortunately, only subscribed riders are paired with gender data, so the following analysis only looks at subscribed users instead of casual users. 
+
+The general trend shows a steady increase in users since 2015 but no extreme change. The data also shows that over the 4 year period, only 25% of the riders are female and the other 75% of riders are male. The following analysis aims to describe and explain the difference in gendered Divvy bike usership. 
+
+The following methods were used in the analysis of the Divvy bike data: 
+
+1. Clean data 
+2. Summarise data according to year and gender 
+3. Map the data and frequency of trips 
+4. Compare the trip frequency with income and race data
+5. Compare trip duration by year and gender 
+6. Compare user age by gender and year 
+7. Compare trip day of week by gender and year 
+
+The following analysis uses U.S. Census Bureau data from the 2017 American Community Survey in conjunction with the Divvy bikes data. 
+
+```{r load libraries, results = FALSE}
+
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(scales)
+library(sf)
+library(leaflet)
+library(ggmap)
+library(tidycensus)
+
+```
+
+```{r load data, results = FALSE}
+
+divvy15Q1 <- read_csv("DivvyData/Divvy_Trips_2015-Q1Q2/Divvy_Trips_2015-Q1.csv")
+divvy15Q2 <- read_csv("DivvyData/Divvy_Trips_2015-Q1Q2/Divvy_Trips_2015-Q2.csv")
+
+divvy1507 <- read_csv("DivvyData/Divvy_Trips_2015_Q3Q4/Divvy_Trips_2015_07.csv")
+divvy1508 <- read_csv("DivvyData/Divvy_Trips_2015_Q3Q4/Divvy_Trips_2015_08.csv")
+divvy1509 <- read_csv("DivvyData/Divvy_Trips_2015_Q3Q4/Divvy_Trips_2015_09.csv")
+divvy15Q4 <- read_csv("DivvyData/Divvy_Trips_2015_Q3Q4/Divvy_Trips_2015_Q4.csv")
+
+divvy1604 <- read_csv("DivvyData/Divvy_Trips_2016_Q1Q2/Divvy_Trips_2016_Q1Q2/Divvy_Trips_2016_04.csv")
+divvy1605 <- read_csv("DivvyData/Divvy_Trips_2016_Q1Q2/Divvy_Trips_2016_Q1Q2/Divvy_Trips_2016_05.csv")
+divvy1606 <- read_csv("DivvyData/Divvy_Trips_2016_Q1Q2/Divvy_Trips_2016_Q1Q2/Divvy_Trips_2016_06.csv")
+divvy16Q1 <- read_csv("DivvyData/Divvy_Trips_2016_Q1Q2/Divvy_Trips_2016_Q1Q2/Divvy_Trips_2016_Q1.csv")
+
+divvy16Q3 <- read_csv("DivvyData/Divvy_Trips_2016_Q3Q4/Divvy_Trips_2016_Q3.csv")
+divvy16Q4 <- read_csv("DivvyData/Divvy_Trips_2016_Q3Q4/Divvy_Trips_2016_Q4.csv")
+
+divvy17Q1 <- read_csv("DivvyData/Divvy_Trips_2017_Q1Q2/Divvy_Trips_2017_Q1.csv")
+divvy17Q2 <- read_csv("DivvyData/Divvy_Trips_2017_Q1Q2/Divvy_Trips_2017_Q2.csv")
+
+divvy17Q3 <- read_csv("DivvyData/Divvy_Trips_2017_Q3Q4/Divvy_Trips_2017_Q3.csv")
+divvy17Q4 <- read_csv("DivvyData/Divvy_Trips_2017_Q3Q4/Divvy_Trips_2017_Q4.csv")
+
+divvy18Q1 <- read_csv("DivvyData/Divvy_Trips_2018_Q1/Divvy_Trips_2018_Q1.csv")
+divvy18Q1 <- divvy18Q1 %>% rename("trip_id" = "01 - Rental Details Rental ID",
+                                  "start_time" = "01 - Rental Details Local Start Time",
+                                  "end_time" = "01 - Rental Details Local End Time",
+                                  "bikeid" = "01 - Rental Details Bike ID",
+                                  "tripduration" = "01 - Rental Details Duration In Seconds Uncapped",
+                                  "from_station_id" = "03 - Rental Start Station ID",
+                                  "from_station_name" = "03 - Rental Start Station Name",
+                                  "to_station_id" = "02 - Rental End Station ID",
+                                  "to_station_name" = "02 - Rental End Station Name",
+                                  "usertype" = "User Type",
+                                  "gender" = "Member Gender",
+                                  "birthyear" = "05 - Member Details Member Birthday Year")
+                                  
+divvy18Q2 <- read_csv("DivvyData/Divvy_Trips_2018_Q2/Divvy_Trips_2018_Q2.csv")
+divvy18Q3 <- read_csv("DivvyData/Divvy_Trips_2018_Q3/Divvy_Trips_2018_Q3.csv")
+divvy18Q4 <- read_csv("DivvyData/Divvy_Trips_2018_Q4/Divvy_Trips_2018_Q4.csv")
+
+divvyStations <- read_csv("DivvyData/Divvy_Trips_2017_Q1Q2/Divvy_Stations_2017_Q1Q2.csv")
+divvyStations <- subset(divvyStations, select = c("id", "latitude", "longitude"))
+
+tractIncome <- get_acs(geography = "tract", state = "IL", county = "Cook", table = "B19013", 
+                       year = 2017, survey = "acs5", output = "wide", geometry = TRUE)
+
+tractRace <- get_acs(geography = "tract", state = "IL", county = "Cook", 
+                     variables = c("B02001_001", "B02001_002", "B02001_003", "B02001_004", "B02001_005", "B02001_006"), 
+                       year = 2017, survey = "acs5", output = "wide", geometry = TRUE)
+```
+
+```{r clean data, results = FALSE}
+
+tractRace <- tractRace %>%
+  mutate(Other = B02001_001E-(B02001_002E + B02001_003E + B02001_004E + B02001_005E + B02001_006E)) %>% 
+  rename(Total = B02001_001E, White = B02001_002E, Black = B02001_003E, 
+         AIAN = B02001_004E, Asian = B02001_005E, NHPI = B02001_006E) %>% 
+  select(NAME, Total, White, Black, AIAN, Asian, NHPI, geometry, Other)
+
+chiRace <-
+  tractRace %>% 
+  mutate(pWhite = (White / Total)*100,
+         pBlack = (Black / Total)*100,
+         pAsian = (Asian / Total)*100,
+         pAIAN = (AIAN / Total)*100, 
+         pNHPI = (NHPI / Total)*100,
+         pOther = (Other / Total)*100)
+
+divvy15Q3 <- full_join(full_join(divvy1507,divvy1508),divvy1509)
+
+divvy16Q2 <- full_join(full_join(divvy1604,divvy1605),divvy1606)
+
+# Create functions
+
+gender <- function(data) {
+  data %>% filter(gender == "Male" | gender == "Female")
+}
+
+joinYear <- function(Q1,Q2,Q3,Q4) {
+  full_join(full_join(full_join(Q1,Q2),Q3),Q4)
+}
+
+countGender <- function(data) {
+  data %>% group_by(data$gender) %>%
+    summarise(gender_count = n())
+}
+
+
+# Combine yearly data
+
+divvy15 <- joinYear(divvy15Q1,divvy15Q2,divvy15Q3,divvy15Q4)
+divvy16 <- joinYear(divvy16Q1,divvy16Q2,divvy16Q3,divvy16Q4)
+divvy17 <- joinYear(divvy17Q1,divvy17Q2,divvy17Q3,divvy17Q4)
+divvy18 <- joinYear(divvy18Q1,divvy18Q2,divvy18Q3,divvy18Q4)
+
+# Remove non-gendered rides
+
+divvy15 <- gender(divvy15)
+divvy16 <- gender(divvy16)
+divvy17 <- gender(divvy17)
+divvy18 <- gender(divvy18)
+
+# Join station data to yearly data 
+
+map15 <- divvy15 %>% group_by(from_station_id) %>% count(from_station_id, gender)
+
+map15 <- full_join(map15, divvyStations, by = c("from_station_id" = "id"))
+map15 <- map15 %>% filter(!is.na(longitude))
+map15Male <- map15 %>% filter(!is.na(latitude)) %>% filter(gender == "Male")
+map15Male <- map15Male %>% st_as_sf(coords = c("longitude", "latitude"), crs = 4269)
+
+map15Female <- map15 %>% filter(!is.na(latitude)) %>% filter(gender == "Female")
+map15Female <- map15Female %>% st_as_sf(coords = c("longitude", "latitude"), crs = 4269)
+
+# Join 2018 data 
+
+map18 <- divvy18 %>% group_by(from_station_id) %>% count(from_station_id, gender)
+
+map18 <- full_join(map18, divvyStations, by = c("from_station_id" = "id"))
+map18 <- map18 %>% filter(!is.na(longitude))
+map18Male <- map18 %>% filter(!is.na(latitude)) %>% filter(gender == "Male")
+map18Male <- map18Male %>% st_as_sf(coords = c("longitude", "latitude"), crs = 4269)
+
+map18Female <- map18 %>% filter(!is.na(latitude)) %>% filter(gender == "Female")
+map18Female <- map18Female %>% st_as_sf(coords = c("longitude", "latitude"), crs = 4269)
+
+```
+
+```{r plot maps}
+
+pop15Male <- paste0("<b>2015 Male Trip Origins: <b>", map15Male$n, "<br>")
+
+leaflet() %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = .8)) %>%
+  addCircles(data = map15Male, color = "#1F0540", weight = 1,
+            opacity = 1.0, fillOpacity = 0.25,
+            popup = pop15Male, radius = ~n/75,
+            highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE))
+
+pop15Female <- paste0("<b>2015 Female Trip Origins: <b>", map15Female$n, "<br>")
+
+leaflet() %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = .8)) %>%
+  addCircles(data = map15Female, color = "#6C11DF", weight = 1,
+            opacity = 1.0, fillOpacity = 0.25,
+            popup = pop15Female, radius = ~n/20,
+            highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE))
+
+pop18Male <- paste0("<b>2018 Male Trip Origins: <b>", map18Male$n, "<br>")
+
+leaflet() %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = .8)) %>%
+  addCircles(data = map18Male, color = "#1F0540", weight = 1,
+            opacity = 1.0, fillOpacity = 0.25,
+            popup = pop18Male, radius = ~n/75,
+            highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE))
+
+pop18Female <- paste0("<b>2018 Female Trip Origins: <b>", map18Female$n, "<br>")
+
+leaflet() %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = .8)) %>%
+  addCircles(data = map18Female, color = "#6C11DF", weight = 1,
+            opacity = 1.0, fillOpacity = 0.25,
+            popup = pop18Female, radius = ~n/20,
+            highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE))
+
+leaflet() %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = .8)) %>%
+  addPolygons(data = tractIncome, color = "#444444", weight = 0, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              fillColor = ~colorNumeric("Reds", B19013_001E)(B19013_001E)) %>% 
+  addCircles(data = map18Male, color = "#1F0540", weight = 1,
+            opacity = 1.0, fillOpacity = 0.25,
+            popup = pop18Male, radius = ~n/75,
+            highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE))
+
+leaflet() %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = .8)) %>%
+  addPolygons(data = tractIncome, color = "#444444", weight = 0, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              fillColor = ~colorNumeric("Reds", B19013_001E)(B19013_001E)) %>%
+  addCircles(data = map18Female, color = "#6C11DF", weight = 1,
+            opacity = 1.0, fillOpacity = 0.25,
+            popup = pop18Female, radius = ~n/20,
+            highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE))
+
+leaflet() %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = .8)) %>%
+  addPolygons(data = chiRace, color = "#444444", weight = 0, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              fillColor = ~colorNumeric("Blues", pWhite)(pWhite)) %>%  
+  addCircles(data = map18Male, color = "#1F0540", weight = 1,
+            opacity = 1.0, fillOpacity = 0.25,
+            popup = pop18Male, radius = ~n/75,
+            highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE))
+
+leaflet() %>% 
+  addProviderTiles(providers$Stamen.Terrain, options = providerTileOptions(opacity = .8)) %>%
+  addPolygons(data = chiRace, color = "#444444", weight = 0, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.75,
+              fillColor = ~colorNumeric("Blues", pWhite)(pWhite)) %>%
+  addCircles(data = map18Female, color = "#6C11DF", weight = 1,
+            opacity = 1.0, fillOpacity = 0.25,
+            popup = pop18Female, radius = ~n/20,
+            highlightOptions = highlightOptions(color = "white", weight = 2,
+                                                  bringToFront = TRUE))
+
+```
+
+```{r gendered usage, results = FALSE}
+
+countGender(divvy15)
+countGender(divvy16)
+countGender(divvy17)
+countGender(divvy18)
+
+male2015 <- divvy15 %>% filter(gender == "Male") %>% summarise(avgm = (mean(tripduration)/60))
+female2015 <- divvy15 %>% filter(gender == "Female") %>% summarise(avgf = (mean(tripduration)/60))
+avgtrip15 <- merge(male2015, female2015)
+
+male2016 <- divvy16 %>% filter(gender == "Male") %>% summarise(avgm = (mean(tripduration)/60))
+female2016 <- divvy16 %>% filter(gender == "Female") %>% summarise(avgf = (mean(tripduration)/60))
+avgtrip16 <- merge(male2016, female2016)
+
+male2017 <- divvy17 %>% filter(gender == "Male") %>% summarise(avgm = (mean(tripduration)/60))
+female2017 <- divvy17 %>% filter(gender == "Female") %>% summarise(avgf = (mean(tripduration)/60))
+avgtrip17 <- merge(male2017, female2017)
+
+male2018 <- divvy18 %>% filter(gender == "Male") %>% summarise(avgm = (mean(tripduration)/60))
+female2018 <- divvy18 %>% filter(gender == "Female") %>% summarise(avgf = (mean(tripduration)/60))
+avgtrip18 <- merge(male2018, female2018)
+
+avgtrip <- full_join(full_join(full_join(avgtrip15, avgtrip16), avgtrip17), avgtrip18) 
+avgtrip$year <- c("2015", "2016", "2017", "2018")
+
+divvy15 <- divvy15 %>% filter(!is.na(birthyear)) %>% 
+  mutate(age = 2021 - birthyear)
+
+agem15 <- divvy15 %>% filter(gender == "Male") %>% summarise(avgam = mean(age))
+agef15 <- divvy15 %>% filter(gender == "Female") %>% summarise(avgaf = mean(age))
+
+avga15 <- merge(agem15, agef15)
+
+divvy16 <- divvy16 %>% filter(!is.na(birthyear)) %>% 
+  mutate(age = 2021 - birthyear)
+
+agem16 <- divvy16 %>% filter(gender == "Male") %>% summarise(avgam = mean(age))
+agef16 <- divvy16 %>% filter(gender == "Female") %>% summarise(avgaf = mean(age))
+
+avga16 <- merge(agem16, agef16)
+
+divvy17 <- divvy17 %>% filter(!is.na(birthyear)) %>% 
+  mutate(age = 2021 - birthyear)
+
+agem17 <- divvy17 %>% filter(gender == "Male") %>% summarise(avgam = mean(age))
+agef17 <- divvy17 %>% filter(gender == "Female") %>% summarise(avgaf = mean(age))
+
+avga17 <- merge(agem17, agef17)
+
+divvy18 <- divvy18 %>% filter(!is.na(birthyear)) %>% 
+  mutate(age = 2021 - birthyear)
+
+agem18 <- divvy18 %>% filter(gender == "Male") %>% summarise(avgam = mean(age))
+agef18 <- divvy18 %>% filter(gender == "Female") %>% summarise(avgaf = mean(age))
+
+avga18 <- merge(agem18, agef18)
+
+avga <- full_join(full_join(full_join(avga15, avga16), avga17), avga18) 
+avga$year <- c("2015", "2016", "2017", "2018")
+
+ggplot(avga, aes(y = avgam, x = year)) +
+  geom_col(fill = "#1F0540") +
+  labs(title = "Average Age of Male Divvy Bike Users 2015 - 2018", x = "Year", y = "Average Age") +
+  theme_minimal()
+
+ggplot(avga, aes(y = avgaf, x = year)) +
+  geom_col(fill = "#6C11DF") +
+  labs(title = "Average Age of Female Divvy Bike Users 2015 - 2018", x = "Year", y = "Average Age") +
+  theme_minimal()
+
+ggplot(avgtrip, aes(y = avgm, x = year)) +
+  geom_col(fill = "#1F0540") +
+  labs(title = "Average Trip Duration of Male Divvy Bike Users 2015 - 2018", x = "Year", y = "Average Trip Duration in Minutes") +
+  theme_minimal()
+
+ggplot(avgtrip, aes(y = avgf, x = year)) +
+  geom_col(fill = "#6C11DF") +
+  labs(title = "Average Trip Duration of Female Divvy Bike Users 2015 - 2018", x = "Year", y = "Average Trip Duration in Minutes") +
+  theme_minimal()
+
+
+```
+
+```{r time of use, results = FALSE}
+
+divvy15$Time <- format(as.POSIXct(divvy15$starttime,format="%m/%d/%Y %H:%M"),"%H:%M")
+divvy15$Day <- format(as.POSIXct(divvy15$starttime,format="%m/%d/%Y %H:%M"),"%m/%d/%Y") 
+divvy15$Day <- as.Date(divvy15$Day, format = "%m/%d/%Y") 
+divvy15$Day <- wday(divvy15$Day, label = TRUE)
+
+dateM15 <- divvy15 %>% filter(gender == "Male") %>% group_by(Day) %>% summarise(dayCount = n()) %>% 
+  mutate(freq = dayCount/sum(dayCount))
+
+dateF15 <- divvy15 %>% filter(gender == "Female") %>% group_by(Day) %>% summarise(dayCount = n()) %>% 
+  mutate(freq = dayCount/sum(dayCount))
+
+divvy18$Time <- format(as.POSIXct(divvy18$start_time,format="%m/%d/%Y %H:%M"),"%H:%M")
+divvy18$Day <- format(as.POSIXct(divvy18$start_time,format="%Y-%m-%d %H:%M:%S"),"%m/%d/%Y") 
+divvy18$Day <- as.Date(divvy18$Day, format = "%m/%d/%Y") 
+divvy18$Day <- wday(divvy18$Day, label = TRUE)
+
+dateM18 <- divvy18 %>% filter(gender == "Male") %>% group_by(Day) %>% summarise(dayCount = n()) %>% 
+  mutate(freq = dayCount/sum(dayCount))
+
+dateF18 <- divvy18 %>% filter(gender == "Female") %>% group_by(Day) %>% summarise(dayCount = n()) %>% 
+  mutate(freq = dayCount/sum(dayCount))
+
+
+dateM15$Day <- factor(dateM15$Day, 
+                      levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+
+dateF15$Day <- factor(dateF15$Day, 
+                      levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+
+dateM18$Day <- factor(dateM18$Day, 
+                      levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+
+dateF18$Day <- factor(dateF18$Day, 
+                      levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+
+
+ggplot(dateM15, aes(y = freq, x = Day)) +
+  geom_col(fill = "#1F0540") +
+  labs(title = "Share of Male Divvy Bike Trips per Day 2015", x = "Day", y = "Share of Trips") +
+  theme_minimal()
+
+ggplot(dateF15, aes(y = freq, x = Day)) +
+  geom_col(fill = "#6C11DF") +
+  labs(title = "Share of Female Divvy Bike Trips per Day 2015", x = "Day", y = "Share of Trips") +
+  theme_minimal()
+
+ggplot(dateM18, aes(y = freq, x = Day)) +
+  geom_col(fill = "#1F0540") +
+  labs(title = "Share of Male Divvy Bike Trips per Day 2018", x = "Day", y = "Share of Trips") +
+  theme_minimal()
+
+ggplot(dateF18, aes(y = freq, x = Day)) +
+  geom_col(fill = "#6C11DF") +
+  labs(title = "Share of Female Divvy Bike Trips per Day 2018", x = "Day", y = "Share of Trips") +
+  theme_minimal()
+
+```
+
+## Divvy Analysis Results
+
+The results show that more male trips are focused in the West Loop and Loop areas which make up the Central Business District of the city. This implies that most male trips are work related, either transportation to or from work. Most female trips are dispersed along the Loop and residential to the north of the Loop and just south of the Loop. These trips are much more dispersed than male trips and show that they may be more home related as compared to male trips. The changes from 2015 to 2018 illustrate that overall more trips took place, and the growth followed the same pattern in 2018 as it did in 2015. 
+
+When the density of trips is compared to income in the city, the female trips closely fit to the higher income areas. Male trips also follow the income trend, but not as closely as female trips. The close fit with income shows that the more affluent a neighborhood is, the more likely its female residents are to ride Divvy bikes. The possible reasoning behind this is broad, however there are a few reasons that seem to fit more than others. First, it is possible that roadways in more aflfuent neighborhoods are better cared for, and offer a safer and cleaner route for cyclists. Second, it is possible that more affluent neighborhoods require fewer women to work for income, and thus the women have more time to either leisurely ride Divvy bikes, or ride strictly for transportation purposes. Third, it is possible that Divvy bikes are seen as an unnecessary expense to potential users in less affluent neighborhoods. In either case, there is a key disparity between female Divvy bike usership in poor neighborhoods and affluent neighborhoods. This disparity, with further analysis, could point to a key determinant of female Divvy bike usership and could be used to increase female ridership. 
+
+When the density of trips is compared to race in the city, the female and male trips both loosely follow the majority white trend. However, the relationship falls apart when we look further north of the Loop where nieghborhoods become almost entirely residential and less densely developed. While the percentage of white residents seems to effect the lack of usage on the south and west sides of the city, the relationship on the north side may deteriorate because of other factors. 
+
+The analysis of the age of Divvy bike users illustrates that generally the ages difference between male and female users is minimal. Both male and female users have trended younger in the 4 year period, however only by 2-3 years. 
+
+The analysis of the trip duration of male and female Divvy bike users shows that male trips are always 3-5 minutes shorter than female trips. This time difference could be explained by the differing purposes in male and female trips, however the consistency and shortness of the time difference implies that it may be due to females generally riding slower than male riders. This distinct difference offers some surprising insight onto one deterrent for female Divvy bike users. A trip that takes 5 minutes for a male user could take a female user 8-10 minutes and even that small time difference can influence a transportation decision for many people. Mode choice is a complicated topic but even small changes in the utility of a mode and a cost of a mode can change people's minds. One interesting comment that this analysis brings to light is that it may be important to take into account gender when looking closely at mode choice and trip assignment in a transportation model. Of course on a large scale project the differences wouldn't be too important, but at the neighborhood level the planning implications could be massive. 
+
+The analysis of the trip day of week shows that men generally make most of their trips on weekdays. Alternatively, women tend to disperse their rides over the week and weekend. These charts show that women may use Divvy bikes for more leisure trips or any non-work based trips when compared to men. This idea is upheld by the geographic dispersion of female trips as well.
+
+## Twitter Analysis Methods 
+
+The following analysis intends to use a logistic regression model to gender tweets and subsequently perform a sentiment analysis on the newly gendered tweets collected from twitter's API. Unfortunately the scope of this analysis is greater than could be completed in a single semester. The following steps detail the process of this analysis that will hopefully be completed over the coming months. 
+
+1. Build the Model:
+Use a hand-gendered dataset of tweets to build and train a logistic regression model to predict gender based on the content of a tweet.
+
+2. Gender the Twitter Data: 
+Use the logistic regression model to gender tweets from twitter's API using the key words: cta, chicago, public transit, train, bus, etc. 
+
+3. Run the Sentiment Analysis 
+Run a sentiment analysis and compare the results from male and female tweeters. Summarise the results of the sentiment analysis on female experiences in the city.
+
+The following code only begins the process of creating the model for gendering tweets. 
+
+```{r load libraries 2, results = FALSE}
+
+library(NLP)
+library(tidytext)
+library(textstem)
+library(superml)
+
+```
+
+```{r load data 2, results = FALSE}
+
+genderedData <- read_csv("gender-classifier-DFE-791531.csv/gender-classifier-DFE-791531.csv")
+
+```
+
+```{r create model, results = FALSE}
+
+genderedData <- genderedData %>% 
+  select(gender, description) %>%
+  na.omit(genderedData) %>% 
+  filter(gender != "brand")
+
+genderedData$gender <- case_when(genderedData$gender == "female" ~ 1,
+                                 genderedData$gender == "male" ~ 0) 
+
+genderedData <- na.omit(genderedData)
+
+
+genderedData$description <- gsub("[^A-z]", " ", genderedData$description)
+
+genderedData$description <- tolower(genderedData$description)
+
+genderedToken <- genderedData %>% unnest_tokens(term, description, token = "words")
+
+genderedToken$lemma <- lemmatize_words(genderedToken$term)
+
+cfv <- CountVectorizer$new(max_features = 10, remove_stopwords = FALSE)
+cf_term <- cfv$fit_transform(genderedToken$lemma)
+
+```
+
+## Twitter Analysis Results
+
+The results of this analysis should prove useful in ascertaining the feelings of females towards public transit and open spaces in the city, however the results must be coupled with other data sources, policy recommendations, and real world experiences. The results of this analysis will not be enough to prove that there are gender inequalities in cities, public transportation, and public spaces. These results can only be complementary to further analysis. 
+
+## Policy 
+
+Much of the analysis in this project points to the importance of data collection strategies, toolkit standards, and policy recommendations in order to address the issue of gender inequality in the built environment.
+
+The first step in increasing gender equality in the built environment is establishing gendered data collection strategies. This step also requires the participation of women in the decision making process of planning. Gendered data collection can start small, there is no reason that privacy boundaries need to be crossed in order to collect it. This data collection could be as simple as including an optional questionnaire on utility bills, public transportation signs, or at public meetings. These questionnaires can help planners understand the experiences of women in the built environment. Beyond data collection, planners can establish policies that ensure female participation in public meetings and the planning process. One example of this is offering free child care from licensed professionals at public meetings to encourage female participation. Another option would be offering public meetings at a variety of times throughout the day rather than only in the evenings to allow people, and women, with alternative work and family schedules to attend. These simple practices could help women have a voice in planning that could change the way the built environment treats them. 
+
+The second step in increasing gender equality in the built environment is establishing a toolkit that is reproducible around the country and around the world in garnering female support in planning. UN Habitat recently released a tool kit caller Her City which gives planners, decision makers, and organizations around the world a set of tools to increase female participation. This new program also offers world-wide but country specific trainings, one of which I will be attending this summer. These trainings aim to teach everyone how to be more inclusive of women and how to consider women in planning decisions. 
+
+The third step in increasing gender equality in the built environment is to make policy suggestions aimed at limiting the key deterrents for women in the built environment. Example policies include well lit waiting areas at transportation stops, emergency call buttons in public areas, bike lanes separated from traffic by park strips or parking lanes, and street lights. These policies include safety updates that can help women feel more comfortable in public spaces. Gathering data from women and including women in the planning process can bring to light other policy changes as well. One study at a National Park project showed that women with strollers and people in wheel chairs had to leave the sidewalk and enter oncoming traffic to access a park due to poor planning. Simple flaws like this would be recognized if those affected were included in the planning process. 
+
+In conclusion, the analysis in this project are useful but are mostly exploratory. Changes must be made to encourage gendered analysis of public spaces and encourage female and other underrepresented voices in decision making processes. These changes could significantly increase the usability of public spaces, increase safety in public spaces, and increase comfort in the built environment. 
+
