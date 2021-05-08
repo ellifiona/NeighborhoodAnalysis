@@ -8,7 +8,7 @@
 |-|-|-|
 | Grading Contract |2/5/21  |  |
 | R Learner's Permit |2/19/21|  |
-| Class Reflections |5/7/21| Added my relfection for the final day of class |
+| Class Reflections |5/7/21| Added my reflection for the final day of class |
 | Polished Lab Notebooks |4/21/21|  |
 | Final Project Proposal |3/12/21|  |
 | Final Project Background |4/2/21|  |
