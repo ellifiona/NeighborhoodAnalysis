@@ -8,12 +8,13 @@
 |-|-|-|
 | Grading Contract |2/5/21  |  |
 | R Learner's Permit |2/19/21|  |
-| Class Reflections |5/7/21|  |
+| Class Reflections |5/7/21| Added my relfection for the final day of class |
 | Polished Lab Notebooks |4/21/21|  |
 | Final Project Proposal |3/12/21|  |
 | Final Project Background |4/2/21|  |
-| Final Project Presentation |  |  |
-| Final Project |  |  |
+| Final Project Presentation |5/4/21| Forgot to change this date when I uploaded it |
+| Final Project |5/7/21|  |
+| Extra |5/7/21| Contains all the extra assignments I contracted for |
 
 **Notes:** 
 
